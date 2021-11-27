@@ -3,7 +3,7 @@
  */
 const path = require( 'path' );
 const { cfx } = require( '@squirrel-forge/node-cfx' );
-const { CliInput, Progress, isPojo, leadingZeros, convertBytes } = require( '@squirrel-forge/node-util' );
+const { CliInput, Progress, Timer, isPojo, leadingZeros, convertBytes } = require( '@squirrel-forge/node-util' );
 const ImageCompiler = require( './classes/ImageCompiler' );
 
 /**
@@ -11,6 +11,9 @@ const ImageCompiler = require( './classes/ImageCompiler' );
  * @return {Promise<void>} - Possibly throws errors in strict mode
  */
 module.exports = async function cli() {
+
+    // Timer
+    const timer = new Timer();
 
     // Input
     const input = new CliInput( cfx );
@@ -35,8 +38,17 @@ module.exports = async function cli() {
         // Show more output
         verbose : [ '-i', '--verbose', false, true ],
 
+        // Convert to webp format
+        webp : [ '-x', '--use-webp', false, true ],
+
+        // Use webp format
+        plugins : [ '-p', '--plugins', '', false ],
+
+        // Color limits
+        colors : [ '-c', '--colors', '', false ],
+
         // Generate map
-        map : [ '-m', '--map', false, true ],
+        nomap : [ '-m', '--no-map', false, true ],
 
         // Force replace map
         squash : [ '-f', '--squash-map', false, true ],
@@ -71,8 +83,43 @@ module.exports = async function cli() {
     imgC.verbose = options.verbose;
 
     // Set map options
-    imgC.options.map = options.map;
+    imgC.options.map = !options.nomap;
     imgC.options.squash = options.squash;
+
+    // Enable webp conversion
+    if ( options.webp ) {
+        imgC.plugins = [ 'imagemin-gifsicle', 'imagemin-svgo', 'imagemin-webp' ];
+    }
+
+    // Plugins option must be an Array
+    if ( !( options.plugins instanceof Array ) ) {
+        options.plugins = options.plugins.split( ',' )
+            .filter( ( v ) => { return !!v.length; } );
+    }
+    if ( options.plugins.length ) {
+        imgC.plugins = options.plugins;
+    }
+
+    // Color warning option must be an Array
+    if ( !( options.colors instanceof Array ) ) {
+        options.colors = options.colors.split( ',' )
+            .filter( ( v ) => { return !!v.length; } )
+            .map( ( x ) => { return parseInt( x, 10 ) * 1024; } );
+    }
+
+    // Use default color if not enough defined
+    if ( options.colors.length !== 3 ) {
+
+        // Notify user if something is defined
+        if ( options.verbose && options.colors.length ) {
+            cfx.info( 'Using default coloring, [fwhite]-c[fcyan] or [fwhite]--colors'
+                + ' [fcyan]must contain 3 incrementing byte limit integers' );
+        }
+
+        // Set default coloring limits
+        options.colors = [ 150 * 1024, 300 * 1024, 500 * 1024 ];
+    }
+    const [ mark_green, mark_yellow, mark_red ] = options.colors;
 
     // Notify strict mode
     if ( imgC.strict && imgC.verbose ) {
@@ -91,43 +138,120 @@ module.exports = async function cli() {
      * @return {boolean} - Write file, always true
      */
     const statsFetcher = ( file, stats, compiler ) => {
-        const rel_path =  file.rel !== '.' ? file.rel + path.sep : '';
-        const file_name = file.target.name + file.target.ext;
+
+        // Stop the spinner, is updated with process count after output
         compiler.strict && spinner.stop();
-        if ( compiler.verbose && typeof file.percent !== 'undefined' ) {
-            cfx.info( '- [fwhite]' + leadingZeros( file.percent, 5, ' ' ) + '%'
-                + ' [fcyan][[fwhite]' + leadingZeros( convertBytes( file.target_size ), 12, ' ' ) + '[fcyan]]'
-                + ' [fcyan]' + path.sep + rel_path + '[fwhite]' + file_name
-            );
+
+        // Generate informational output if requested and file was processed
+        if ( compiler.verbose && file.buffer ) {
+
+            // Show size saved percent
+            const output = [ '- [fwhite]' + leadingZeros( file.percent, 5, ' ' ) + '%' ];
+
+            // Make extra stats output
+            if ( options.stats ) {
+
+                // Begin bracket block
+                output.push( '[fcyan][[fwhite]' );
+                const fromtype = file.source_type.mime || file.source_type.ext;
+                const totype = file.target_type.mime || file.target_type.ext;
+                if ( fromtype !== totype ) {
+
+                    // Show type conversion, happens when using the webp module
+                    output.push( leadingZeros( fromtype, 11, ' ' )
+                        + ' [fcyan]>[fwhite] ' + leadingZeros( totype, 13, ' ' ) );
+                } else {
+
+                    // Show output type
+                    output.push( leadingZeros( totype, options.webp ? 27 : 14, ' ' ) );
+                }
+
+                // Show output size
+                let size_color = '';
+                if ( file.target_size <= mark_green ) {
+                    size_color = '[fgreen]';
+                } else if ( file.target_size <= mark_yellow ) {
+                    size_color = '[fyellow]';
+                } else if ( file.target_size > mark_red ) {
+                    size_color = '[fred]';
+                }
+                output.push( size_color + leadingZeros( convertBytes( file.target_size ), 11, ' ' ) );
+
+                // Time to process
+                output.push( '[fwhite]' + leadingZeros( timer.end( 'process-' + file_count ), 14, ' ' ) );
+
+                // End bracket block
+                output.push( '[fcyan]]' );
+            }
+
+            // Relative to root path
+            output.push( '[fcyan]' + path.sep + ( file.rel !== '.' ? file.rel + path.sep : '' )
+                + '[fwhite]' + file.target.name + file.target.ext );
+
+            // Show as one output message
+            cfx.info( output.join( ' ' ) );
         }
+
+        // Start the spinner with a count of the files processed
         const new_spinner = 'Optimized ('
             + ( leadingZeros( file_count, ( stats.sources + '' ).length, ' ' ) + '/' + stats.sources )
             + ')... ';
         compiler.strict && spinner.start( new_spinner );
         file_count++;
+        timer.start( 'process-' + file_count );
+
+        // Always write, we are just collecting stats
         return true;
     };
 
     // Begin processing
     imgC.strict && spinner.start( 'Optimizing... ' );
+    let stats;
+    try {
 
-    // Load defined imagemin plugins
-    imgC.loadPlugins();
+        // Load defined imagemin plugins
+        imgC.loadPlugins();
 
-    // Run render, process and write
-    const stats = await imgC.run( source, target, statsFetcher );
+        // Run render, process and write
+        timer.start( 'process-' + file_count );
+        stats = await imgC.run( source, target, statsFetcher );
+    } catch ( e ) {
+        imgC.strict && spinner.stop();
+
+        // Generate cleaner exception output only full trace on verbose
+        const error = new ImageCompiler.ImageCompilerException( 'Something went wrong', e );
+        imgC.error( imgC._exceptionAsOutput( error, !imgC.verbose ) );
+        process.exit( 1 );
+    }
+
+    // If we did not crash, stop spinner and inform user
+    imgC.strict && spinner.stop();
 
     // Output result info
-    imgC.strict && spinner.stop();
     if ( !stats.written ) {
-        cfx.warn( 'minify-images did not write any files!' );
+        if ( stats.sources ) {
+            if ( imgC.options.map ) {
+                cfx.success( 'minify-images did not find any changes according to map' );
+                if ( options.verbose ) {
+                    cfx.info( 'Use the [fwhite]-f [fcyan]or [fwhite]--squash-map [fcyan]flag to ignore any existing map' );
+                }
+            } else {
+                cfx.warn( 'minify-images did not write any files!' );
+            }
+        } else {
+            cfx.error( 'minify-images did not find any files!' );
+        }
+        if ( imgC.verbose ) {
+            cfx.info( 'Completed after [fwhite]' + timer.end( 'construct' ) );
+        }
     } else {
-        cfx.success( 'minify-images wrote ' + stats.written + ' file' + ( stats.written === 1 ? '' : 's' )
-            + ' and saved ' + stats.size.percent + ' %' );
+        cfx.success( 'minify-images wrote [ ' + stats.written + ' ] file' + ( stats.written === 1 ? '' : 's' )
+            + ' and saved [ ' + stats.size.percent + '% ] in ' + timer.end( 'construct' ) );
     }
 
     // Generate stats on request only
     if ( options.stats ) {
+        cfx.log( '[fmagenta][ [fwhite]Stats [fmagenta]][re]' );
         const entries = Object.entries( stats );
         for ( let i = 0; i < entries.length; i++ ) {
             const [ key, value ] = entries[ i ];
@@ -147,7 +271,7 @@ module.exports = async function cli() {
                 display_value = ' [fwhite]' + display_value;
             }
             if ( !complex_value ) {
-                cfx.info( ' - ' + key + display_value );
+                cfx.info( '- ' + key + display_value );
             }
             if ( complex_value ) {
                 if ( isPojo( complex_value ) ) {
@@ -169,14 +293,14 @@ module.exports = async function cli() {
                                 default :
                                     colored_k = '[fwhite]' + cmplx_k;
                                 }
-                                cfx.info( ' - ' + colored_k );
+                                cfx.info( '- ' + colored_k );
                                 for ( let k = 0; k < cmplx_v.length; k++ ) {
-                                    cfx.info( '   - [fwhite]' + cmplx_v[ k ] );
+                                    cfx.info( '  - [fwhite]' + cmplx_v[ k ] );
                                 }
                             }
                         } else {
-                            cfx.info( ' - ' + cmplx_k + '.' + key + ': [fwhite]' + cmplx_v
-                                + ( cmplx_k === 'percent' ? ' %'
+                            cfx.info( '- ' + cmplx_k + '.' + key + ': [fwhite]' + cmplx_v
+                                + ( cmplx_k === 'percent' ? '%'
                                     : ' [fcyan]([fwhite]' + convertBytes( cmplx_v ) + '[fcyan])' ) );
                         }
                     }
