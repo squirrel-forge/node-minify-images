@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@squirrel-forge/node-cfx": "^1.0.2",
-    "@squirrel-forge/node-util": "^0.5.2",
+    "@squirrel-forge/node-util": "^0.6.0",
     "imagemin": "^7.0.1",
     "imagemin-gifsicle": "^7.0.0",
     "imagemin-mozjpeg": "^8.0.0",

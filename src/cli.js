@@ -6,6 +6,8 @@ const cfx = require( '@squirrel-forge/node-cfx' ).cfx;
 const CliInput = require( '@squirrel-forge/node-util' ).CliInput;
 const Progress = require( '@squirrel-forge/node-util' ).Progress;
 const isPojo = require( '@squirrel-forge/node-util' ).isPojo;
+const leadingZeros = require( '@squirrel-forge/node-util' ).leadingZeros;
+const convertBytes = require( '@squirrel-forge/node-util' ).convertBytes;
 const ImageCompiler = require( './classes/ImageCompiler' );
 
 /**
@@ -71,14 +73,7 @@ module.exports = async function cli() {
         cfx.warn( 'Running in strict mode!' );
     }
 
-    const leadingZeros = ( num, length = 2, char = '0' ) => {
-        num = num + '';
-        while ( num.length < length ) {
-            num = char + num;
-        }
-        return num;
-    };
-
+    // Init progress spinner and start count
     const spinner = new Progress();
     let file_count = 1;
 
@@ -94,8 +89,10 @@ module.exports = async function cli() {
         const file_name = file.target.name + file.target.ext;
         compiler.strict && spinner.stop();
         if ( compiler.verbose ) {
-            cfx.info( '- [fwhite]' + leadingZeros( file.percent, 5, ' ' ) + '% [fcyan]'
-                    + path.sep + rel_path + '[fwhite]' + file_name );
+            cfx.info( '- [fwhite]' + leadingZeros( file.percent, 5, ' ' ) + '%'
+                + ' [fcyan][[fwhite]' + leadingZeros( convertBytes( file.target_size ), 12, ' ' ) + '[fcyan]]'
+                + ' [fcyan]' + path.sep + rel_path + '[fwhite]' + file_name
+            );
         }
         const new_spinner = 'Optimized ('
             + ( leadingZeros( file_count, ( stats.sources + '' ).length, ' ' ) + '/' + stats.sources )
@@ -167,7 +164,9 @@ module.exports = async function cli() {
                                 }
                             }
                         } else {
-                            cfx.info( ' - ' + cmplx_k + '.' + key + ': [fwhite]' + cmplx_v );
+                            cfx.info( ' - ' + cmplx_k + '.' + key + ': [fwhite]' + cmplx_v
+                                + ( cmplx_k === 'percent' ? '%'
+                                    : ' [fcyan]([fwhite]' + convertBytes( cmplx_v ) + '[fcyan])' ) );
                         }
                     }
                 }
