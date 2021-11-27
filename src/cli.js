@@ -47,11 +47,14 @@ module.exports = async function cli() {
         // Color limits
         colors : [ '-c', '--colors', '', false ],
 
-        // Generate map
-        nomap : [ '-m', '--no-map', false, true ],
+        // Run without map mode
+        nomap : [ '-n', '--no-map', false, true ],
 
-        // Force replace map
+        // Force replace map, only has an effect when in map mode
         squash : [ '-f', '--squash-map', false, true ],
+
+        // Set options source directory
+        options : [ '-o', '--options', true, false ],
 
         // Do not break on any error, disables the default strict if set
         loose : [ '-u', '--loose', null, true ],
@@ -98,6 +101,18 @@ module.exports = async function cli() {
     }
     if ( options.plugins.length ) {
         imgC.plugins = options.plugins;
+    }
+
+    // Disable plugin options file
+    if ( input._f.includes( options.options ) ) {
+
+        // Load no options
+        options.options = null;
+    }
+
+    // Set as options path
+    if ( options.options && options.options.length ) {
+        imgC.options.optionsPath = options.options;
     }
 
     // Color warning option must be an Array

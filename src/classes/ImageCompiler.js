@@ -78,6 +78,8 @@ class ImageCompiler {
             map : true,
             squash : false,
             mapName : '.minify-images.map',
+            optionsPath : null,
+            optionsName : '.minify-images',
             plugins : {},
         };
 
@@ -454,6 +456,57 @@ class ImageCompiler {
     }
 
     /**
+     * Load plugins config
+     * @protected
+     * @param {Object} source - Source object
+     * @return {Promise<string|null>} - Loaded path or null on empty
+     */
+    async _loadPluginsConfig( source ) {
+        let data = null, from = null;
+
+        // Prioritize from options if available
+        if ( this.options.optionsPath && this.options.optionsPath.length ) {
+            const from_options = path.join( this.options.optionsPath, this.options.optionsName );
+            const options_exists = await this.fs.exists( from_options );
+            if ( options_exists ) {
+                data = await this.fs.readJSON( from_options );
+                from = from_options;
+            }
+        }
+        if ( !data ) {
+
+            // Check current working directory
+            const from_cwd = path.join( process.cwd(), this.options.optionsName );
+            const cwd_exists = await this.fs.exists( from_cwd );
+            if ( cwd_exists ) {
+
+                // Config loaded from cwd
+                data = await this.fs.readJSON( from_cwd );
+                from = from_cwd;
+            } else {
+
+                // Check source root directory
+                const from_source = path.join( source.root, this.options.optionsName );
+                const source_exists = await this.fs.exists( from_source );
+                if ( source_exists ) {
+
+                    // Config loaded form source root
+                    data = await this.fs.readJSON( from_source );
+                    from = from_source;
+                }
+            }
+        }
+
+        // Assign config if one is loaded an not empty
+        if ( data && isPojo( data ) && Object.keys( data ).length ) {
+            Object.assign( this.options.plugins, data );
+        }
+
+        // Return origin
+        return from;
+    }
+
+    /**
      * Run build
      * @param {string} source - Source path
      * @param {string} target - Target path
@@ -466,12 +519,8 @@ class ImageCompiler {
         source = await this._resolveSource( source );
         target = await this._resolveTarget( target );
 
-        // Load hash map of optimized images
-        const hashmap = await this._loadMap( source );
-
         // Basic stats object
         const stats = {
-            map : hashmap,
             sources : source.files.length,
             processed : 0,
             written : 0,
@@ -486,6 +535,12 @@ class ImageCompiler {
                 failed : [],
             }
         };
+
+        // Load plugin options file
+        stats.options = await this._loadPluginsConfig( source );
+
+        // Load hash map of optimized images
+        stats.hashmap = await this._loadMap( source );
 
         // Run file list and optimize
         for ( let i = 0; i < source.files.length; i++ ) {
@@ -534,14 +589,17 @@ class ImageCompiler {
             }
         }
 
-        if ( this.options.map ) {
-            await this.fs.write( hashmap, JSON.stringify( this._map ) );
+        // Update hashmap if option is on and path is available
+        if ( this.options.map && stats.hashmap ) {
+            await this.fs.write( stats.hashmap, JSON.stringify( this._map ) );
         }
 
+        // Calculate overall percent reduction
         if ( stats.size.source && stats.size.target ) {
             stats.size.percent = round( 100 - stats.size.target / stats.size.source * 100 );
         }
 
+        // End and return stats
         return stats;
     }
 }

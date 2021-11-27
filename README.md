@@ -12,6 +12,7 @@ Note: last version compatible with node ^10.0.0
 
 ```
 npm i @squirrel-forge/minify-images
+
 ```
 
 All imagemin plugins are optional to allow for a custom setup if required, install your required plugins and then use the *--no-optional* flag when installing minify-images. See the [plugins section](#plugins) for compatibility and more information.
@@ -28,6 +29,7 @@ minify-images source target -b --boolean --str=imagemin-webp,imagemin-svgo
 For local installations use *npx* to run the minify-images executable.
 ```
 npx minify-images ...
+
 ```
 
 ### Arguments
@@ -54,12 +56,40 @@ A long option always override the value of a short option if both are used.
   -x   | --use-webp   |   bool   | Convert to webp format, only jpeg/png
   -p   | --plugins    | str, ... | Define which plugins to use
   -c   | --colors     | str, ... | Define verbose listing color byte limits, must be 3 integers > 0
-  -m   | --no-map     |   bool   | Do not use a hashmap, should use this options for single file argument
-  -f   | --squash-map |   bool   | Ignore existing map, no map will be loaded and unless -m is used any existing map is replaced
+  -n   | --no-map     |   bool   | Do not use a hashmap, should use this options for single file argument
+  -f   | --squash-map |   bool   | Ignore existing map, no map will be loaded and unless -n is used any existing map is replaced
+  -o   | --options    | 'no',str | Load options from this path, unless set to 'no', if not set regular checks apply
   -s   | --stats      |   bool   | Show stats output
   -i   | --verbose    |   bool   | Show additional info
   -u   | --loose      |   bool   | Run in loose mode, disables the strict option
   -v   | --version    |   bool   | Show the application version
+
+## Config file
+
+Plugin options can be set by a *.minify-images* json format files containing options objects for each plugin you wish to customize, see following example:
+
+File: *.minify-images*
+```
+{
+  "imagemin-mozjpeg": {
+    "quality": 80,
+    "progressive": false
+  }
+  ...
+}
+```
+
+The config is loaded in following order:
+
+ 1. If you specified a config path it will be checked first.
+ 2. Your current working directory, from where you are running the command usually.
+ 3. The source root directory, from where the source file or files are loaded.
+
+If none of the above resolve to a valid config, defaults are used.
+
+## Map file
+
+The *.minify-images.map* file is only a json map of paths with file content hashes, see the [options](#options) for *-n* and *-f* for more details.
 
 ## NPM scripts
 
@@ -71,6 +101,7 @@ When installed locally use following scripts.
     "images:publish": "npx minify-images src/img dist/img",
 }
 ...
+
 ```
 
 ## Api usage
@@ -128,6 +159,7 @@ Note: upto date version at time of release.
 ├───────────────┼──────────────────────────────────────────────────────────────┤
 │ More info     │ https://nodesecurity.io/advisories/1005009                   │
 └───────────────┴──────────────────────────────────────────────────────────────┘
+
 ```
  > in: imagemin-gifsicle, imagemin-mozjpeg, imagemin-pngquant, imagemin-webp
 
@@ -143,6 +175,7 @@ Note: upto date version at time of release.
 ├───────────────┼──────────────────────────────────────────────────────────────┤
 │ More info     │ https://nodesecurity.io/advisories/1004967                   │
 └───────────────┴──────────────────────────────────────────────────────────────┘
+
 ```
  > in: imagemin-svgo
 
@@ -161,5 +194,6 @@ Note: upto date version at time of release.
 ├───────────────┼──────────────────────────────────────────────────────────────┤
 │ More info     │ https://nodesecurity.io/advisories/1005151                   │
 └───────────────┴──────────────────────────────────────────────────────────────┘
+
 ```
  > in: imagemin-webp
