@@ -18,6 +18,7 @@
     "url": "git+https://github.com/squirrel-forge/node-minify-images.git"
   },
   "keywords": [
+    "cli",
     "simple",
     "optimize",
     "imagemin"
