@@ -162,10 +162,16 @@ module.exports = async function cli() {
 
             // Show size saved percent
             const output = [];
-            output.push( '- ' + ( file.percent > 0 ?
-                file.percent < 10 ? '[fyellow]' : '[fwhite]'
-                : '[fred][bwhite]' )
-                + leadingZeros( file.percent, 7, ' ' ) + '% [re]' );
+
+            let percent_color = '[fwhite]';
+            if ( file.percent < 0 ) {
+                percent_color = '[fred][bwhite]';
+            } else if ( file.percent < 10 ) {
+                percent_color = '[fyellow]';
+            } else if ( file.percent > 40 ) {
+                percent_color = '[fgreen]';
+            }
+            output.push( '- ' + percent_color + leadingZeros( file.percent, 7, ' ' ) + '% [re]' );
 
             // Make extra stats output
             if ( options.stats ) {
