@@ -386,21 +386,26 @@ class ImageCompiler {
      * @return {Promise<string>} - Map path
      */
     async _loadMap( source ) {
-        const map_path = path.join( source.root, this.options.mapName );
-        const exists = await this.fs.exists( map_path );
-        if ( exists ) {
-            let map = null;
-            try {
-                map = await this.fs.readJSON( map_path );
-            } catch ( e ) {
-                this.error( new ImageCompilerException( 'Failed to read hashmap at: ' + map_path, e ) );
-                return map_path;
+        if ( this.options.map ) {
+            const map_path = path.join( source.root, this.options.mapName );
+            if ( !this.options.squash ) {
+                const exists = await this.fs.exists( map_path );
+                if ( exists ) {
+                    let map = null;
+                    try {
+                        map = await this.fs.readJSON( map_path );
+                    } catch ( e ) {
+                        this.error( new ImageCompilerException( 'Failed to read hashmap at: ' + map_path, e ) );
+                        return map_path;
+                    }
+                    if ( map && isPojo( map ) ) {
+                        this._map = map;
+                    }
+                }
             }
-            if ( map && isPojo( map ) ) {
-                this._map = map;
-            }
+            return map_path;
         }
-        return map_path;
+        return null;
     }
 
     /**
@@ -417,10 +422,7 @@ class ImageCompiler {
         target = await this._resolveTarget( target );
 
         // Load hash map of optimized images
-        let hashmap = 'null';
-        if ( this.options.map && !this.options.squash ) {
-            hashmap = await this._loadMap( source );
-        }
+        const hashmap = await this._loadMap( source );
 
         // Basic stats object
         const stats = {

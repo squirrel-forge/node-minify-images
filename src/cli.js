@@ -29,7 +29,7 @@ module.exports = async function cli() {
         // Show version
         version : [ '-v', '--version', false, true ],
 
-        // Show more output
+        // Show stats output
         stats : [ '-s', '--stats', false, true ],
 
         // Show more output
@@ -38,8 +38,8 @@ module.exports = async function cli() {
         // Generate map
         map : [ '-m', '--map', false, true ],
 
-        // Squash map
-        squash : [ '-x', '--squash-map', false, true ],
+        // Force replace map
+        squash : [ '-f', '--squash-map', false, true ],
 
         // Do not break on any error, disables the default strict if set
         loose : [ '-u', '--loose', null, true ],
@@ -134,6 +134,9 @@ module.exports = async function cli() {
             let display_value = value, complex_value;
             switch ( typeof value ) {
             case 'object' :
+                if ( value === null ) {
+                    continue;
+                }
                 complex_value = value;
                 display_value = '';
                 break;
