@@ -161,7 +161,11 @@ module.exports = async function cli() {
         if ( compiler.verbose && file.buffer ) {
 
             // Show size saved percent
-            const output = [ '- [fwhite]' + leadingZeros( file.percent, 5, ' ' ) + '%' ];
+            const output = [];
+            output.push( '- ' + ( file.percent > 0 ?
+                file.percent < 10 ? '[fyellow]' : '[fwhite]'
+                : '[fred][bwhite]' )
+                + leadingZeros( file.percent, 7, ' ' ) + '% [re]' );
 
             // Make extra stats output
             if ( options.stats ) {
@@ -188,12 +192,12 @@ module.exports = async function cli() {
                 } else if ( file.target_size <= mark_yellow ) {
                     size_color = '[fyellow]';
                 } else if ( file.target_size > mark_red ) {
-                    size_color = '[fred]';
+                    size_color = '[fred][bwhite]';
                 }
-                output.push( size_color + leadingZeros( convertBytes( file.target_size ), 11, ' ' ) );
+                output.push( size_color + leadingZeros( convertBytes( file.target_size ), 11, ' ' ) + ' [re]' );
 
                 // Time to process
-                output.push( '[fwhite]' + leadingZeros( timer.end( 'process-' + file_count ), 14, ' ' ) );
+                output.push( '[fwhite]' + leadingZeros( timer.end( 'process-' + file_count ), 13, ' ' ) );
 
                 // End bracket block
                 output.push( '[fcyan]]' );
@@ -223,9 +227,6 @@ module.exports = async function cli() {
     imgC.strict && spinner.start( 'Optimizing... ' );
     let stats;
     try {
-
-        // Load defined imagemin plugins
-        imgC.loadPlugins();
 
         // Run render, process and write
         timer.start( 'process-' + file_count );

@@ -542,6 +542,9 @@ class ImageCompiler {
         // Load hash map of optimized images
         stats.hashmap = await this._loadMap( source );
 
+        // Load defined imagemin plugins
+        this.loadPlugins();
+
         // Run file list and optimize
         for ( let i = 0; i < source.files.length; i++ ) {
             const file_path = source.files[ i ];
