@@ -4,6 +4,7 @@
 const path = require( 'path' );
 const crypto = require( 'crypto' );
 const imagemin = require( 'imagemin' );
+const fileType = require( 'file-type' );
 const { Exception, FsInterface, isPojo, round } = require( '@squirrel-forge/node-util' );
 
 /**
@@ -65,9 +66,7 @@ class ImageCompiler {
          * @property
          * @type {string[]}
          */
-        this.plugins = [
-            'imagemin-gifsicle', 'imagemin-mozjpeg', 'imagemin-pngquant', 'imagemin-svgo', 'imagemin-webp',
-        ];
+        this.plugins = [ 'imagemin-gifsicle', 'imagemin-mozjpeg', 'imagemin-pngquant', 'imagemin-svgo' ];
 
         /**
          * Imagemin options
@@ -250,6 +249,9 @@ class ImageCompiler {
             source : this._getPathData( file ),
             target : this._getPathData( target_path, ext ),
             hash : null,
+            buffer : null,
+            source_type : null,
+            target_type : null,
         };
     }
 
@@ -306,19 +308,56 @@ class ImageCompiler {
     }
 
     /**
+     * Get type of buffer
+     * @param {Buffer} buf - Buffer
+     * @param {Object} file - File object
+     * @return {Promise<null|{ext:string,mime:string}>} - Type object or null if not detected
+     */
+    async typeOfBuffer( buf, file ) {
+        let type = await fileType.fromBuffer( buf );
+
+        // Failed to detect type
+        if ( !isPojo( type ) ) {
+            type = { ext : file.source.ext.substr( 1 ), mime : null };
+
+            // Assume/guess mime
+            switch ( type.ext ) {
+            case 'jpg' :
+                type.mime = 'image/jpeg';
+                break;
+            case 'svg' :
+                type.mime = 'image/svg+xml';
+                break;
+            default :
+                type.mime = 'image/' + type.ext;
+            }
+        }
+
+        // Assume svg if extension is declared as xml or source is svg
+        if ( type && type.ext === 'xml' || file.source.ext === '.svg' ) {
+            type.ext = 'svg';
+            type.mime = 'image/svg+xml';
+        }
+        return type;
+    }
+
+    /**
      * Optimize image file
      * @protected
      * @param {Object} data - File object
      * @param {Object} stats - Stats object
+     * @param {Object} source - Source object
+     * @param {Object} target - Target object
      * @return {Promise<void>} - May throw exceptions
      */
-    async _optimizeFile( data, stats ) {
+    async _optimizeFile( data, stats, source, target ) {
 
         // Read file
         const buf = await this.fs.read( data.source.path, null );
         if ( buf instanceof Error ) {
             throw buf;
         }
+        data.source_type = await this.typeOfBuffer( buf, data );
         data.source_size = Buffer.byteLength( buf );
         if ( this.options.map ) {
             data.hash = crypto.createHash( 'sha256' ).update( buf ).digest( 'hex' );
@@ -336,6 +375,11 @@ class ImageCompiler {
         // Optimize
         data.buffer = await imagemin.buffer( buf, { plugins : this._plugins } );
         data.target_size = Buffer.byteLength( data.buffer );
+        data.target_type = await this.typeOfBuffer( data.buffer, data );
+        if ( data.source_type.mime !== data.target_type.mime ) {
+            const new_data = this._getFileData( data.source.path, source, target, '.' + data.target_type.ext );
+            data.target = new_data.target;
+        }
         const percent = 100 - data.target_size / data.source_size * 100;
         const decimals = Math.pow( 10, 2 );
         data.percent = Math.round( percent * decimals ) / decimals;
@@ -450,7 +494,7 @@ class ImageCompiler {
 
             // Attempt to optimize
             try {
-                await this._optimizeFile( file, stats );
+                await this._optimizeFile( file, stats, source, target );
                 if ( file && file.buffer ) {
                     stats.processed++;
                 }
