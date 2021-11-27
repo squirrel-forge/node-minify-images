@@ -2,9 +2,9 @@
  * Requires
  */
 const path = require( 'path' );
+const crypto = require( 'crypto' );
 const imagemin = require( 'imagemin' );
-const Exception = require( '@squirrel-forge/node-util' ).Exception;
-const FsInterface = require( '@squirrel-forge/node-util' ).FsInterface;
+const { Exception, FsInterface, isPojo, round } = require( '@squirrel-forge/node-util' );
 
 /**
  * ImageCompiler exception
@@ -75,7 +75,12 @@ class ImageCompiler {
          * @property
          * @type {Object}
          */
-        this.options = {};
+        this.options = {
+            map : true,
+            squash : false,
+            mapName : '.minify-images.map',
+            plugins : {},
+        };
 
         /**
          * List of loaded plugin names
@@ -92,6 +97,14 @@ class ImageCompiler {
          * @type {Function[]}
          */
         this._plugins = [];
+
+        /**
+         * Loaded map data
+         * @protected
+         * @property
+         * @type {Object}
+         */
+        this._map = {};
     }
 
     /**
@@ -236,6 +249,7 @@ class ImageCompiler {
             rel : path.dirname( this.fs.relative2root( target_path, target.resolved ) ),
             source : this._getPathData( file ),
             target : this._getPathData( target_path, ext ),
+            hash : null,
         };
     }
 
@@ -265,13 +279,30 @@ class ImageCompiler {
             this.error( new ImageCompilerException( 'Plugin already defined: ' + module ) );
             return;
         }
-        const options = {};
+        const options = this.options.plugins[ module ] || {};
         try {
             this._plugins.push( require( module )( options ) );
             this._loaded.push( module );
         } catch ( e ) {
             this.error( new ImageCompilerException( 'Plugin not installed: ' + module, e ) );
         }
+    }
+
+    /**
+     * Check if this explicit image has been optimized already
+     * @protected
+     * @param {Object} data - File data
+     * @return {boolean} - True if should optimize
+     */
+    _shouldOptimize( data ) {
+        if ( this.options.map ) {
+            const name = path.join( data.rel, data.source.name + data.source.ext );
+            if ( this._map[ name ] === data.hash ) {
+                return false;
+            }
+            this._map[ name ] = data.hash;
+        }
+        return true;
     }
 
     /**
@@ -289,8 +320,20 @@ class ImageCompiler {
             throw buf;
         }
         data.source_size = Buffer.byteLength( buf );
+        if ( this.options.map ) {
+            data.hash = crypto.createHash( 'sha256' ).update( buf ).digest( 'hex' );
+        }
 
-        // Optimize and return
+        // After read and optimize decision callback
+        const optimize = this._shouldOptimize( data );
+
+        // Skip optimize and save some time
+        if ( !optimize ) {
+            stats.skipped++;
+            return;
+        }
+
+        // Optimize
         data.buffer = await imagemin.buffer( buf, { plugins : this._plugins } );
         data.target_size = Buffer.byteLength( data.buffer );
         const percent = 100 - data.target_size / data.source_size * 100;
@@ -337,11 +380,35 @@ class ImageCompiler {
     }
 
     /**
+     * Load sourcemap from root directory
+     * @protected
+     * @param {Object} source Source obejct
+     * @return {Promise<string>} - Map path
+     */
+    async _loadMap( source ) {
+        const map_path = path.join( source.root, this.options.mapName );
+        const exists = await this.fs.exists( map_path );
+        if ( exists ) {
+            let map = null;
+            try {
+                map = await this.fs.readJSON( map_path );
+            } catch ( e ) {
+                this.error( new ImageCompilerException( 'Failed to read hashmap at: ' + map_path, e ) );
+                return map_path;
+            }
+            if ( map && isPojo( map ) ) {
+                this._map = map;
+            }
+        }
+        return map_path;
+    }
+
+    /**
      * Run build
      * @param {string} source - Source path
      * @param {string} target - Target path
-     * @param {null|function} callback - Before write callback
-     * @return {Promise<{processed: number, sources: number, rendered: number, maps: number, written: number}>} - Stats
+     * @param {null|Function} callback - Before write callback
+     * @return {Promise<Object>} - Stats
      */
     async run( source, target, callback = null ) {
 
@@ -349,11 +416,19 @@ class ImageCompiler {
         source = await this._resolveSource( source );
         target = await this._resolveTarget( target );
 
+        // Load hash map of optimized images
+        let hashmap = 'null';
+        if ( this.options.map && !this.options.squash ) {
+            hashmap = await this._loadMap( source );
+        }
+
         // Basic stats object
         const stats = {
+            map : hashmap,
             sources : source.files.length,
             processed : 0,
             written : 0,
+            skipped : 0,
             size : {
                 source : 0,
                 target : 0,
@@ -373,7 +448,7 @@ class ImageCompiler {
             // Attempt to optimize
             try {
                 await this._optimizeFile( file, stats );
-                if ( file ) {
+                if ( file && file.buffer ) {
                     stats.processed++;
                 }
             } catch ( e ) {
@@ -412,9 +487,13 @@ class ImageCompiler {
             }
         }
 
-        const percent = 100 - stats.size.target / stats.size.source * 100;
-        const decimals = Math.pow( 10, 2 );
-        stats.size.percent = Math.round( percent * decimals ) / decimals;
+        if ( this.options.map ) {
+            await this.fs.write( hashmap, JSON.stringify( this._map ) );
+        }
+
+        if ( stats.size.source && stats.size.target ) {
+            stats.size.percent = round( 100 - stats.size.target / stats.size.source * 100 );
+        }
 
         return stats;
     }

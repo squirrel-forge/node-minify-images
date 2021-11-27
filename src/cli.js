@@ -2,12 +2,8 @@
  * Requires
  */
 const path = require( 'path' );
-const cfx = require( '@squirrel-forge/node-cfx' ).cfx;
-const CliInput = require( '@squirrel-forge/node-util' ).CliInput;
-const Progress = require( '@squirrel-forge/node-util' ).Progress;
-const isPojo = require( '@squirrel-forge/node-util' ).isPojo;
-const leadingZeros = require( '@squirrel-forge/node-util' ).leadingZeros;
-const convertBytes = require( '@squirrel-forge/node-util' ).convertBytes;
+const { cfx } = require( '@squirrel-forge/node-cfx' );
+const { CliInput, Progress, isPojo, leadingZeros, convertBytes } = require( '@squirrel-forge/node-util' );
 const ImageCompiler = require( './classes/ImageCompiler' );
 
 /**
@@ -39,6 +35,12 @@ module.exports = async function cli() {
         // Show more output
         verbose : [ '-i', '--verbose', false, true ],
 
+        // Generate map
+        map : [ '-m', '--map', false, true ],
+
+        // Squash map
+        squash : [ '-x', '--squash-map', false, true ],
+
         // Do not break on any error, disables the default strict if set
         loose : [ '-u', '--loose', null, true ],
 
@@ -68,6 +70,10 @@ module.exports = async function cli() {
     }
     imgC.verbose = options.verbose;
 
+    // Set map options
+    imgC.options.map = options.map;
+    imgC.options.squash = options.squash;
+
     // Notify strict mode
     if ( imgC.strict && imgC.verbose ) {
         cfx.warn( 'Running in strict mode!' );
@@ -88,7 +94,7 @@ module.exports = async function cli() {
         const rel_path =  file.rel !== '.' ? file.rel + path.sep : '';
         const file_name = file.target.name + file.target.ext;
         compiler.strict && spinner.stop();
-        if ( compiler.verbose ) {
+        if ( compiler.verbose && typeof file.percent !== 'undefined' ) {
             cfx.info( '- [fwhite]' + leadingZeros( file.percent, 5, ' ' ) + '%'
                 + ' [fcyan][[fwhite]' + leadingZeros( convertBytes( file.target_size ), 12, ' ' ) + '[fcyan]]'
                 + ' [fcyan]' + path.sep + rel_path + '[fwhite]' + file_name
@@ -117,7 +123,7 @@ module.exports = async function cli() {
         cfx.warn( 'minify-images did not write any files!' );
     } else {
         cfx.success( 'minify-images wrote ' + stats.written + ' file' + ( stats.written === 1 ? '' : 's' )
-            + ' and saved ' + stats.size.percent + '%' );
+            + ' and saved ' + stats.size.percent + ' %' );
     }
 
     // Generate stats on request only
@@ -165,7 +171,7 @@ module.exports = async function cli() {
                             }
                         } else {
                             cfx.info( ' - ' + cmplx_k + '.' + key + ': [fwhite]' + cmplx_v
-                                + ( cmplx_k === 'percent' ? '%'
+                                + ( cmplx_k === 'percent' ? ' %'
                                     : ' [fcyan]([fwhite]' + convertBytes( cmplx_v ) + '[fcyan])' ) );
                         }
                     }
