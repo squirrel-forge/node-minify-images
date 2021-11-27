@@ -1,0 +1,44 @@
+{
+  "name": "@squirrel-forge/minify-images",
+  "version": "0.5.0",
+  "description": "Simple image compiler including some useful configuration options.",
+  "main": "src/classes/ImageCompiler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "minify-images": "bin/cli"
+  },
+  "directories": {
+    "bin": "bin",
+    "src": "src"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/squirrel-forge/node-minify-images.git"
+  },
+  "keywords": [
+    "simple",
+    "optimize",
+    "imagemin"
+  ],
+  "author": "Daniel Hartwell <me@siux.info> (http://siux.info)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/squirrel-forge/node-minify-images/issues"
+  },
+  "homepage": "https://github.com/squirrel-forge/node-minify-images#readme",
+  "engines": {
+    "node": ">= 10.0.0"
+  },
+  "dependencies": {
+    "@squirrel-forge/node-cfx": "^1.0.2",
+    "@squirrel-forge/node-util": "^0.5.2",
+    "imagemin": "^7.0.1",
+    "imagemin-gifsicle": "^7.0.0",
+    "imagemin-mozjpeg": "^8.0.0",
+    "imagemin-pngquant": "^8.0.0",
+    "imagemin-svgo": "^8.0.0",
+    "imagemin-webp": "^6.0.0"
+  }
+}
