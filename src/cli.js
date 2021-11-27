@@ -159,17 +159,19 @@ module.exports = async function cli() {
                                 let colored_k;
                                 switch ( cmplx_k ) {
                                 case 'created' :
-                                    colored_k = '[fgreen]' + cmplx_k;
+                                    colored_k = '[fgreen]' + cmplx_k
+                                        + ' director' + ( cmplx_v.length === 1 ? 'y' : 'ies' ) + ':';
                                     break;
                                 case 'failed' :
-                                    colored_k = '[fred]' + cmplx_k;
+                                    colored_k = '[fred]' + cmplx_k
+                                        + ' director' + ( cmplx_v.length === 1 ? 'y' : 'ies' ) + ':';
                                     break;
                                 default :
                                     colored_k = '[fwhite]' + cmplx_k;
                                 }
                                 cfx.info( ' - ' + colored_k );
                                 for ( let k = 0; k < cmplx_v.length; k++ ) {
-                                    cfx.log( '   - ' + cmplx_v[ k ] );
+                                    cfx.info( '   - [fwhite]' + cmplx_v[ k ] );
                                 }
                             }
                         } else {

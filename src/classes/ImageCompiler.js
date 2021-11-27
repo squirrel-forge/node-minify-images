@@ -354,7 +354,8 @@ class ImageCompiler {
     async _requireDirectory( require_dir, stats ) {
 
         // Check if the dir was recently created and only process if not
-        if ( !stats.dirs.created.includes( require_dir ) && !this.fs.isDir( require_dir ) ) {
+        const exists = await this.fs.exists( require_dir );
+        if ( !stats.dirs.created.includes( require_dir ) && ( !exists || !this.fs.isDir( require_dir ) ) ) {
             let created = null, error;
             try {
 
