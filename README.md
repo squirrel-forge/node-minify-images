@@ -15,7 +15,7 @@ npm i @squirrel-forge/minify-images
 
 ```
 
-All imagemin plugins are optional to allow for a custom setup if required, install your required plugins and then use the *--no-optional* flag when installing minify-images. See the [plugins section](#plugins) for compatibility and more information.
+All imagemin plugins are optional, to allow for a custom setup if required. Install your required plugins and then use the *--no-optional* flag when installing minify-images. See the [plugins section](#plugins) for compatibility and more information.
 
 ## cli usage
 
@@ -110,7 +110,7 @@ You can require the ImagesCompiler class in your node script and run it, change 
 
 ## Plugins
 
-Default plugins that are included as optional dependencies, with some additional notes can be found below:
+Default plugins that are included as optional dependencies, with some additional notes, can be found below:
  
 ### imagemin-gifsicle
 
