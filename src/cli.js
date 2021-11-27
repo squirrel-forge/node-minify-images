@@ -160,9 +160,10 @@ module.exports = async function cli() {
         // Generate informational output if requested and file was processed
         if ( compiler.verbose && file.buffer ) {
 
-            // Show size saved percent
+            // Collect output
             const output = [];
 
+            // Show size saved percent
             let percent_color = '[fwhite]';
             if ( file.percent < 0 ) {
                 percent_color = '[fred][bwhite]';
@@ -252,6 +253,8 @@ module.exports = async function cli() {
     // Output result info
     if ( !stats.written ) {
         if ( stats.sources ) {
+
+            // We have sources but it seems nothing was written
             if ( imgC.options.map ) {
                 cfx.success( 'minify-images did not find any changes according to map' );
                 if ( options.verbose ) {
@@ -261,12 +264,16 @@ module.exports = async function cli() {
                 cfx.warn( 'minify-images did not write any files!' );
             }
         } else {
+
+            // Warn user since there were no sources detected
             cfx.error( 'minify-images did not find any files!' );
         }
         if ( imgC.verbose ) {
             cfx.info( 'Completed after [fwhite]' + timer.end( 'construct' ) );
         }
     } else {
+
+        // Show a few details at least when something was written
         cfx.success( 'minify-images wrote [ ' + stats.written + ' ] file' + ( stats.written === 1 ? '' : 's' )
             + ' and saved [ ' + stats.size.percent + '% ] in ' + timer.end( 'construct' ) );
     }
