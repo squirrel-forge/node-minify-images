@@ -57,7 +57,7 @@ A long option always override the value of a short option if both are used.
   -p   | --plugins    | str, ... | Define which plugins to use
   -c   | --colors     | str, ... | Define verbose listing color byte limits, must be 3 integers > 0
   -n   | --no-map     |   bool   | Do not use a hashmap, should use this options for single file argument
-  -f   | --squash-map |   bool   | Ignore existing map, no map will be loaded and unless -n is used any existing map is replaced
+  -f   | --squash-map |   bool   | Ignore existing map, no map will be loaded and any existing map is replaced
   -o   | --options    | 'no',str | Load options from this path, unless set to 'no', if not set regular checks apply
   -s   | --stats      |   bool   | Show stats output
   -i   | --verbose    |   bool   | Show additional info
