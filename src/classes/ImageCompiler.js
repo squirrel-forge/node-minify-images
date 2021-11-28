@@ -5,7 +5,7 @@ const path = require( 'path' );
 const crypto = require( 'crypto' );
 const imagemin = require( 'imagemin' );
 const fileType = require( 'file-type' );
-const { Exception, FsInterface, isPojo, round } = require( '@squirrel-forge/node-util' );
+const { Exception, FsInterface, Timer, isPojo, round } = require( '@squirrel-forge/node-util' );
 
 /**
  * ImageCompiler exception
@@ -26,6 +26,14 @@ class ImageCompiler {
      * @param {null|console} cfx - Console or alike object
      */
     constructor( cfx = null ) {
+
+        /**
+         * Timer
+         * @public
+         * @property
+         * @type {Timer}
+         */
+        this.timer = new Timer();
 
         /**
          * Console alike reporting object
@@ -254,6 +262,12 @@ class ImageCompiler {
             buffer : null,
             source_type : null,
             target_type : null,
+            time : {
+                total : null,
+                read : null,
+                process : null,
+                write : null,
+            }
         };
     }
 
@@ -355,6 +369,7 @@ class ImageCompiler {
     async _optimizeFile( data, stats, source, target ) {
 
         // Read file
+        this.timer.start( 'read-' + data.source.path );
         const buf = await this.fs.read( data.source.path, null );
         if ( buf instanceof Error ) {
             throw buf;
@@ -364,6 +379,7 @@ class ImageCompiler {
         if ( this.options.map ) {
             data.hash = crypto.createHash( 'sha256' ).update( buf ).digest( 'hex' );
         }
+        data.time.read = this.timer.end( 'read-' + data.source.path );
 
         // After read and optimize decision callback
         const optimize = this._shouldOptimize( data );
@@ -375,6 +391,7 @@ class ImageCompiler {
         }
 
         // Optimize
+        this.timer.start( 'process-' + data.source.path );
         data.buffer = await imagemin.buffer( buf, { plugins : this._plugins } );
         data.target_size = Buffer.byteLength( data.buffer );
         data.target_type = await this.typeOfBuffer( data.buffer, data );
@@ -385,6 +402,7 @@ class ImageCompiler {
         const percent = 100 - data.target_size / data.source_size * 100;
         const decimals = Math.pow( 10, 2 );
         data.percent = Math.round( percent * decimals ) / decimals;
+        data.time.process = this.timer.end( 'process-' + data.source.path );
 
         stats.size.source += data.source_size;
         stats.size.target += data.target_size;
@@ -519,6 +537,7 @@ class ImageCompiler {
      * @return {Promise<void>} - May throw errors
      */
     async _processFile( file_path, source, target, stats, callback = null ) {
+        this.timer.start( 'total-' + file_path );
         const file = this._getFileData( file_path, source, target );
 
         // Attempt to optimize
@@ -541,6 +560,7 @@ class ImageCompiler {
         if ( !write || !file || !file.buffer ) {
             return;
         }
+        this.timer.start( 'write-' + file.source.path );
 
         // Make sure the target directory exists
         const require_dir = path.join( file.target_root, file.rel );
@@ -556,11 +576,13 @@ class ImageCompiler {
 
         // Write the compressed image file
         const wrote = await this.fs.write( file.target.path, file.buffer );
+        file.time.write = this.timer.end( 'write-' + file.source.path );
         if ( !wrote ) {
             this.error( new ImageCompilerException( 'Failed to write: ' + file.target.path ) );
         } else {
             stats.written++;
         }
+        file.time.total = this.timer.end( 'total-' + file_path );
     }
 
     /**
@@ -611,6 +633,7 @@ class ImageCompiler {
      * @return {Promise<Object>} - Stats
      */
     async run( source, target, parallel = false, callback = null ) {
+        this.timer.start( 'total-run' );
 
         // Get source and target definitions
         source = await this._resolveSource( source );
@@ -622,6 +645,7 @@ class ImageCompiler {
             processed : 0,
             written : 0,
             skipped : 0,
+            time : null,
             size : {
                 source : 0,
                 target : 0,
@@ -654,6 +678,7 @@ class ImageCompiler {
         if ( stats.size.source && stats.size.target ) {
             stats.size.percent = round( 100 - stats.size.target / stats.size.source * 100 );
         }
+        stats.time = this.timer.end( 'total-run' );
 
         // End and return stats
         return stats;
