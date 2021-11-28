@@ -107,11 +107,11 @@ module.exports = async function cli() {
     if ( input._f.includes( options.options ) ) {
 
         // Load no options
-        options.options = null;
-    }
+        imgC.options.optionsPath = false;
 
-    // Set as options path
-    if ( options.options && options.options.length ) {
+    } else if ( options.options && options.options.length ) {
+
+        // Set as options path
         imgC.options.optionsPath = options.options;
     }
 

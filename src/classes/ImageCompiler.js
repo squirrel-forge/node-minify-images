@@ -473,7 +473,9 @@ class ImageCompiler {
                 from = from_options;
             }
         }
-        if ( !data ) {
+
+        // Only attempt further loading if not disabled
+        if ( !data && this.options.optionsPath !== false ) {
 
             // Check current working directory
             const from_cwd = path.join( process.cwd(), this.options.optionsName );
@@ -497,7 +499,7 @@ class ImageCompiler {
             }
         }
 
-        // Assign config if one is loaded an not empty
+        // Assign config if one is loaded and not empty
         if ( data && isPojo( data ) && Object.keys( data ).length ) {
             Object.assign( this.options.plugins, data );
         }
