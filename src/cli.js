@@ -207,7 +207,7 @@ module.exports = async function cli() {
                 output.push( size_color + leadingZeros( convertBytes( file.target_size ), 11, ' ' ) + ' [re]' );
 
                 // Time to process
-                output.push( '[fwhite]' + leadingZeros( timer.end( 'process-' + file_count ), 13, ' ' ) );
+                output.push( '[fwhite]' + leadingZeros( file.time.process, 13, ' ' ) );
 
                 // End bracket block
                 output.push( '[fcyan]]' );
@@ -227,7 +227,6 @@ module.exports = async function cli() {
             + ')... ';
         compiler.strict && spinner.start( new_spinner );
         file_count++;
-        timer.start( 'process-' + file_count );
 
         // Always write, we are just collecting stats
         return true;
@@ -239,7 +238,6 @@ module.exports = async function cli() {
     try {
 
         // Run render, process and write
-        timer.start( 'process-' + file_count );
         stats = await imgC.run( source, target, options.parallel, statsFetcher );
     } catch ( e ) {
         imgC.strict && spinner.stop();
