@@ -1,4 +1,4 @@
-# node-minify-images
+# @squirrel-forge/minify-images
 Simple image compiler including some useful configuration options.
 Made to be compatible with node ^10.0.0, might work on higher versions, but current not supported or tested.
 
@@ -56,7 +56,7 @@ A long option always override the value of a short option if both are used.
   -x   | --use-webp   |   bool   | Convert to webp format, only jpeg/png
   -p   | --plugins    | str, ... | Define which plugins to use
   -c   | --colors     | str, ... | Define verbose listing color byte limits, must be 3 integers > 0
-  -n   | --no-map     |   bool   | Do not use a hashmap, should use this options for single file argument
+  -n   | --no-map     |   bool   | Do not use a hashmap, should use this option for single file argument
   -f   | --squash-map |   bool   | Ignore existing map, no map will be loaded and any existing map is replaced
   -o   | --options    | 'no',str | Load options from this path, unless set to 'no', if not set regular checks apply
   -s   | --stats      |   bool   | Show stats output
@@ -66,7 +66,7 @@ A long option always override the value of a short option if both are used.
 
 ## Config file
 
-Plugin options can be set by a *.minify-images* json format files containing options objects for each plugin you wish to customize, see following example:
+Plugin options can be set by a *.minify-images* json format file containing options objects for each plugin you wish to customize, see following example:
 
 File: *.minify-images*
 ```
@@ -89,7 +89,7 @@ If none of the above resolve to a valid config, defaults are used.
 
 ## Map file
 
-The *.minify-images.map* file is only a json map of paths with file content hashes, see the [options](#options) for *-n* and *-f* for more details.
+The *.minify-images.map* file is only a json map of paths with file content hashes, see the [options](#options) *-n* and *-f* for more details.
 
 ## NPM scripts
 
