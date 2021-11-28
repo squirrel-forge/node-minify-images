@@ -56,6 +56,9 @@ module.exports = async function cli() {
         // Set options source directory
         options : [ '-o', '--options', true, false ],
 
+        // Run in parallel mode
+        parallel : [ '-l', '--parallel', false, true ],
+
         // Do not break on any error, disables the default strict if set
         loose : [ '-u', '--loose', null, true ],
 
@@ -237,7 +240,7 @@ module.exports = async function cli() {
 
         // Run render, process and write
         timer.start( 'process-' + file_count );
-        stats = await imgC.run( source, target, statsFetcher );
+        stats = await imgC.run( source, target, options.parallel, statsFetcher );
     } catch ( e ) {
         imgC.strict && spinner.stop();
 

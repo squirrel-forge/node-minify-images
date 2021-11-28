@@ -509,13 +509,108 @@ class ImageCompiler {
     }
 
     /**
+     * Process file
+     * @protected
+     * @param {string} file_path - File path
+     * @param {Object} source - Source object
+     * @param {Object} target - Target object
+     * @param {Object} stats - Stats object
+     * @param {null|Function} callback - Before write callback
+     * @return {Promise<void>} - May throw errors
+     */
+    async _processFile( file_path, source, target, stats, callback = null ) {
+        const file = this._getFileData( file_path, source, target );
+
+        // Attempt to optimize
+        try {
+            await this._optimizeFile( file, stats, source, target );
+            if ( file && file.buffer ) {
+                stats.processed++;
+            }
+        } catch ( e ) {
+            this.error( new ImageCompilerException( 'Optimize failed for: ' + file_path, e ) );
+        }
+
+        // Stats and write decision callback
+        let write = true;
+        if ( file && typeof callback === 'function' ) {
+            write = await callback( file, stats, this );
+        }
+
+        // Skip along if no write or file available
+        if ( !write || !file || !file.buffer ) {
+            return;
+        }
+
+        // Make sure the target directory exists
+        const require_dir = path.join( file.target_root, file.rel );
+        if ( file.rel !== '.' ) {
+            const available_or_created = await this._requireDirectory( require_dir, stats );
+            if ( !available_or_created ) {
+
+                // Skip this file since we cant write it
+                // in strict mode _requireDirectory will have thrown an exception already
+                return;
+            }
+        }
+
+        // Write the compressed image file
+        const wrote = await this.fs.write( file.target.path, file.buffer );
+        if ( !wrote ) {
+            this.error( new ImageCompilerException( 'Failed to write: ' + file.target.path ) );
+        } else {
+            stats.written++;
+        }
+    }
+
+    /**
+     * Process files in parallel
+     * @protected
+     * @param {Object} source - Source object
+     * @param {Object} target - Target object
+     * @param {Object} stats - Stats object
+     * @param {null|Function} callback - Before write callback
+     * @return {Promise<void[]>} - May throw errors
+     */
+    _processParallel( source, target, stats, callback = null ) {
+        const parallel = [];
+        for ( let i = 0; i < source.files.length; i++ ) {
+            parallel.push( this._processFile( source.files[ i ], source, target, stats, callback ) );
+        }
+        return Promise.all( parallel );
+    }
+
+    /**
+     * Process source files
+     * @protected
+     * @param {Object} source - Source object
+     * @param {Object} target - Target object
+     * @param {Object} stats - Stats object
+     * @param {boolean} parallel - Run optimize for all files in parallel
+     * @param {null|Function} callback - Before write callback
+     * @return {Promise<void>} - May throw errors
+     */
+    async _processSource( source, target, stats, parallel = false, callback = null ) {
+        if ( parallel ) {
+            await this._processParallel( source, target, stats, callback );
+        } else {
+
+            // Process each file in order, one at a time, takes longer but does not stress your machine
+            for ( let i = 0; i < source.files.length; i++ ) {
+                await this._processFile( source.files[ i ], source, target, stats, callback );
+            }
+        }
+    }
+
+    /**
      * Run build
      * @param {string} source - Source path
      * @param {string} target - Target path
+     * @param {boolean} parallel - Run optimize for all files in parallel
      * @param {null|Function} callback - Before write callback
      * @return {Promise<Object>} - Stats
      */
-    async run( source, target, callback = null ) {
+    async run( source, target, parallel = false, callback = null ) {
 
         // Get source and target definitions
         source = await this._resolveSource( source );
@@ -548,51 +643,7 @@ class ImageCompiler {
         this.loadPlugins();
 
         // Run file list and optimize
-        for ( let i = 0; i < source.files.length; i++ ) {
-            const file_path = source.files[ i ];
-            const file = this._getFileData( file_path, source, target );
-
-            // Attempt to optimize
-            try {
-                await this._optimizeFile( file, stats, source, target );
-                if ( file && file.buffer ) {
-                    stats.processed++;
-                }
-            } catch ( e ) {
-                this.error( new ImageCompilerException( 'Optimize failed for: ' + file_path, e ) );
-            }
-
-            // Stats and write decision callback
-            let write = true;
-            if ( file && typeof callback === 'function' ) {
-                write = await callback( file, stats, this );
-            }
-
-            // Skip along if no write or file available
-            if ( !write || !file || !file.buffer ) {
-                continue;
-            }
-
-            // Make sure the target directory exists
-            const require_dir = path.join( file.target_root, file.rel );
-            if ( file.rel !== '.' ) {
-                const available_or_created = await this._requireDirectory( require_dir, stats );
-                if ( !available_or_created ) {
-
-                    // Skip this file since we cant write it
-                    // in strict mode _requireDirectory will have thrown an exception already
-                    continue;
-                }
-            }
-
-            // Write the compressed image file
-            const wrote = await this.fs.write( file.target.path, file.buffer );
-            if ( !wrote ) {
-                this.error( new ImageCompilerException( 'Failed to write: ' + file.target.path ) );
-            } else {
-                stats.written++;
-            }
-        }
+        await this._processSource( source, target, stats, parallel, callback );
 
         // Update hashmap if option is on and path is available
         if ( this.options.map && stats.hashmap ) {

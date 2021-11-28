@@ -59,6 +59,7 @@ A long option always override the value of a short option if both are used.
   -n   | --no-map     |   bool   | Do not use a hashmap, should use this option for single file argument
   -f   | --squash-map |   bool   | Ignore existing map, no map will be loaded and any existing map is replaced
   -o   | --options    | 'no',str | Load options from this path, unless set to 'no', if not set regular checks apply
+  -l   | --parallel   |   bool   | Process files in parallel, might be a little faster with lots of files
   -s   | --stats      |   bool   | Show stats output
   -i   | --verbose    |   bool   | Show additional info
   -u   | --loose      |   bool   | Run in loose mode, disables the strict option
