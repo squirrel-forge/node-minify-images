@@ -2,8 +2,9 @@
  * Requires
  */
 const path = require( 'path' );
+const sizeOf = require( 'image-size' );
 const { cfx } = require( '@squirrel-forge/node-cfx' );
-const { CliInput, Progress, Timer, isPojo, leadingZeros, convertBytes } = require( '@squirrel-forge/node-util' );
+const { CliInput, Progress, Timer, leadingZeros, convertBytes, StatsDisplay } = require( '@squirrel-forge/node-util' );
 const ImageCompiler = require( './classes/ImageCompiler' );
 
 /**
@@ -131,11 +132,11 @@ module.exports = async function cli() {
         // Notify user if something is defined
         if ( options.verbose && options.colors.length ) {
             cfx.info( 'Using default coloring, [fwhite]-c[fcyan] or [fwhite]--colors'
-                + ' [fcyan]must contain 3 incrementing byte limit integers' );
+                + ' [fcyan]must contain 3 incrementing kib limit integers' );
         }
 
         // Set default coloring limits
-        options.colors = [ 150 * 1024, 300 * 1024, 500 * 1024 ];
+        options.colors = [ 150 * 1024, 250 * 1024, 400 * 1024 ];
     }
     const [ mark_green, mark_yellow, mark_red ] = options.colors;
 
@@ -144,9 +145,79 @@ module.exports = async function cli() {
         cfx.warn( 'Running in strict mode!' );
     }
 
-    // Init progress spinner and start count
+    // Init progress spinner, stats and count
     const spinner = new Progress();
+    const stDi = new StatsDisplay( cfx );
     let file_count = 1;
+
+    /**
+     * Get file stats data as array
+     * @param {Object} file - File object
+     * @return {Array<string>} - Styled file stats parts
+     */
+    const getFileStats = ( file ) => {
+        const output = [];
+
+        // Show size saved percent
+        let percent_color = 'none';
+        if ( file.percent < 10 ) {
+            percent_color = 'error';
+        } else if ( file.percent < 25 ) {
+            percent_color = 'notice';
+        } else if ( file.percent > 40 ) {
+            percent_color = 'valid';
+        }
+        output.push( '- ' + stDi.show( [ leadingZeros( file.percent, 7, ' ' ) + '% ', percent_color ], true ) );
+
+        // Make extra stats output
+        if ( options.stats ) {
+
+            // Begin bracket block
+            output.push( '[fred][[re]' );
+
+            // Size details
+            output.push( stDi.show( [ [
+                [ leadingZeros( file.dimensions.width, 4, ' ' ), 'number' ],
+                'x',
+                [ leadingZeros( file.dimensions.height, 4, ' ' ), 'number' ],
+            ], 'asline' ], true ) );
+
+            // Show type and transform
+            const fromtype = file.source_type.mime || file.source_type.ext;
+            const totype = file.target_type.mime || file.target_type.ext;
+            if ( fromtype !== totype ) {
+
+                // Show type conversion, happens when using the webp module
+                output.push( '[fwhite]' + leadingZeros( fromtype, 10, ' ' )
+                    + ' [fmagenta]->[fwhite] ' + leadingZeros( totype, 10, ' ' ) );
+            } else {
+
+                // Show output type
+                output.push( '[fwhite]' + leadingZeros( totype, options.webp ? 24 : 13, ' ' ) );
+            }
+
+            // Show output size
+            let size_color = 'none';
+            if ( file.target_size <= mark_green ) {
+                size_color = 'valid';
+            } else if ( file.target_size <= mark_yellow ) {
+                size_color = 'notice';
+            } else if ( file.target_size > mark_red ) {
+                size_color = 'error';
+            }
+            output.push( stDi.show( [ leadingZeros( convertBytes( file.target_size ), 11, ' ' ) + ' ', size_color ], true ) );
+
+            // Time to process
+            output.push( leadingZeros( stDi.show( [ file.time.process, 'time' ], true ), 35, ' ' ) );
+
+            // End bracket block
+            output.push( '[fred]]' );
+        }
+
+        // Relative to root path
+        output.push( stDi.show( [ file.target.rel, 'path' ], true ) );
+        return output;
+    };
 
     /**
      * Fetch stats from file
@@ -160,65 +231,13 @@ module.exports = async function cli() {
         // Stop the spinner, is updated with process count after output
         compiler.strict && spinner.stop();
 
-        // Generate informational output if requested and file was processed
-        if ( compiler.verbose && file.buffer ) {
+        if ( !file.dimensions && ( compiler.verbose || options.stats ) ) {
+            file.dimensions = sizeOf( file.source.path );
+        }
 
-            // Collect output
-            const output = [];
-
-            // Show size saved percent
-            let percent_color = '[fwhite]';
-            if ( file.percent < 0 ) {
-                percent_color = '[fred][bwhite]';
-            } else if ( file.percent < 10 ) {
-                percent_color = '[fyellow]';
-            } else if ( file.percent > 40 ) {
-                percent_color = '[fgreen]';
-            }
-            output.push( '- ' + percent_color + leadingZeros( file.percent, 7, ' ' ) + '% [re]' );
-
-            // Make extra stats output
-            if ( options.stats ) {
-
-                // Begin bracket block
-                output.push( '[fcyan][[fwhite]' );
-                const fromtype = file.source_type.mime || file.source_type.ext;
-                const totype = file.target_type.mime || file.target_type.ext;
-                if ( fromtype !== totype ) {
-
-                    // Show type conversion, happens when using the webp module
-                    output.push( leadingZeros( fromtype, 11, ' ' )
-                        + ' [fcyan]>[fwhite] ' + leadingZeros( totype, 13, ' ' ) );
-                } else {
-
-                    // Show output type
-                    output.push( leadingZeros( totype, options.webp ? 27 : 14, ' ' ) );
-                }
-
-                // Show output size
-                let size_color = '';
-                if ( file.target_size <= mark_green ) {
-                    size_color = '[fgreen]';
-                } else if ( file.target_size <= mark_yellow ) {
-                    size_color = '[fyellow]';
-                } else if ( file.target_size > mark_red ) {
-                    size_color = '[fred][bwhite]';
-                }
-                output.push( size_color + leadingZeros( convertBytes( file.target_size ), 11, ' ' ) + ' [re]' );
-
-                // Time to process
-                output.push( '[fwhite]' + leadingZeros( file.time.process, 13, ' ' ) );
-
-                // End bracket block
-                output.push( '[fcyan]]' );
-            }
-
-            // Relative to root path
-            output.push( '[fcyan]' + path.sep + ( file.rel !== '.' ? file.rel + path.sep : '' )
-                + '[fwhite]' + file.target.name + file.target.ext );
-
-            // Show as one output message
-            cfx.info( output.join( ' ' ) );
+        // Generate informational output if requested
+        if ( compiler.verbose ) {
+            cfx.info( getFileStats( file ).join( ' ' ) );
         }
 
         // Start the spinner with a count of the files processed
@@ -233,12 +252,15 @@ module.exports = async function cli() {
     };
 
     // Begin processing
+    if ( imgC.verbose ) {
+        cfx.info( 'Reading from: ' + stDi.show( [ path.resolve( source ), 'path' ], true ) );
+    }
     imgC.strict && spinner.start( 'Optimizing... ' );
     let stats;
     try {
 
         // Run render, process and write
-        stats = await imgC.run( source, target, options.parallel, statsFetcher );
+        stats = await imgC.run( source, target, options.parallel, null, statsFetcher );
     } catch ( e ) {
         imgC.strict && spinner.stop();
 
@@ -281,62 +303,61 @@ module.exports = async function cli() {
 
     // Generate stats on request only
     if ( options.stats ) {
-        cfx.log( '[fmagenta][ [fwhite]Stats [fmagenta]][re]' );
-        const entries = Object.entries( stats );
-        for ( let i = 0; i < entries.length; i++ ) {
-            const [ key, value ] = entries[ i ];
-            let display_value = value, complex_value;
-            switch ( typeof value ) {
-            case 'object' :
-                if ( value === null ) {
-                    continue;
-                }
-                complex_value = value;
-                display_value = '';
-                break;
-            case 'number' :
-                display_value = ': [fwhite]' + display_value;
-                break;
-            default :
-                display_value = ' [fwhite]' + display_value;
-            }
-            if ( !complex_value ) {
-                cfx.info( '- ' + key + display_value );
-            }
-            if ( complex_value ) {
-                if ( isPojo( complex_value ) ) {
-                    const cmplx_entries = Object.entries( complex_value );
-                    for ( let j = 0; j < cmplx_entries.length; j++ ) {
-                        const [ cmplx_k, cmplx_v ] = cmplx_entries[ j ];
-                        if ( cmplx_v instanceof Array ) {
-                            if ( cmplx_v.length ) {
-                                let colored_k;
-                                switch ( cmplx_k ) {
-                                case 'created' :
-                                    colored_k = '[fgreen]' + cmplx_k
-                                        + ' director' + ( cmplx_v.length === 1 ? 'y' : 'ies' ) + ':';
-                                    break;
-                                case 'failed' :
-                                    colored_k = '[fred]' + cmplx_k
-                                        + ' director' + ( cmplx_v.length === 1 ? 'y' : 'ies' ) + ':';
-                                    break;
-                                default :
-                                    colored_k = '[fwhite]' + cmplx_k;
-                                }
-                                cfx.info( '- ' + colored_k );
-                                for ( let k = 0; k < cmplx_v.length; k++ ) {
-                                    cfx.info( '  - [fwhite]' + cmplx_v[ k ] );
-                                }
-                            }
-                        } else {
-                            cfx.info( '- ' + cmplx_k + '.' + key + ': [fwhite]' + cmplx_v
-                                + ( cmplx_k === 'percent' ? '%'
-                                    : ' [fcyan]([fwhite]' + convertBytes( cmplx_v ) + '[fcyan])' ) );
-                        }
-                    }
+        const so = {
+            Overview : {
+                Files : [ [ 'Sources:', stats.sources ], 'asline' ],
+                Compression : [ [
+                    'Source:', [ stats.size.source, 'bytes' ],
+                    'Processed:', [ stats.size.target, 'bytes' ],
+                    'Saved:', [ stats.size.percent, 'percent' ],
+                ], 'asline' ],
+                Time : [ stats.time, 'time' ],
+            },
+        };
+        if ( stats.sources !== stats.processed ) {
+            so.Overview.Files[ 0 ].push( 'Processed:' );
+            so.Overview.Files[ 0 ].push( stats.processed );
+        }
+        if ( stats.sources !== stats.written ) {
+            so.Overview.Files[ 0 ].push( 'Wrote:' );
+            so.Overview.Files[ 0 ].push( stats.written );
+        }
+        if ( stats.skipped ) {
+            so.Overview.Files[ 0 ].push( 'Skipped:' );
+            so.Overview.Files[ 0 ].push( stats.skipped );
+        }
+        if ( stats.options ) {
+            so.Overview[ 'Options loaded from' ] = [ stats.options, 'path' ];
+        }
+        if ( stats.hashmap && !options.nomap && !options.squash ) {
+            so.Overview[ 'Hashmap loaded from' ] = [ stats.hashmap, 'path' ];
+        }
+        if ( !options.verbose ) {
+            const files_prop = 'Files with possible issues';
+            for ( let i = 0; i < stats.files.length; i++ ) {
+                const file = stats.files[ i ];
+                const conditions = [
+
+                    // Target size is above highest limit
+                    file.target_size > mark_red,
+
+                    // Compression less than 10%, target size not optimal and not an svg
+                    file.percent < 10 && !( file.target_size <= mark_green )
+                        && !( file.target_type.mime === 'image/svg+xml' || file.target_type.ext === '.svg' ),
+
+                    // Target size not optimal and large dimensions
+                    file.target_size > mark_green
+                        && ( file.dimensions.width > 840 || file.dimensions.height > 840 ),
+                ];
+                if ( conditions.some( ( v ) => { return v; } ) ) {
+                    if ( !so[ files_prop ] ) so[ files_prop ] = [];
+                    so[ files_prop ].push( [ getFileStats( file ).join( ' ' ), 'none' ] );
                 }
             }
         }
+
+        // Show generated stats
+        stDi.display( so );
     }
 
     // End application

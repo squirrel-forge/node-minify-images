@@ -44,14 +44,6 @@ class ImageCompiler {
         this._cfx = cfx;
 
         /**
-         * File system interface
-         * @public
-         * @property
-         * @type {FsInterface}
-         */
-        this.fs = new FsInterface();
-
-        /**
          * Strict mode
          * @public
          * @property
@@ -176,7 +168,7 @@ class ImageCompiler {
         const resolved = path.resolve( source );
 
         // Require valid source
-        const source_exists = await this.fs.exists( resolved );
+        const source_exists = await FsInterface.exists( resolved );
         if ( !source_exists ) {
             throw new ImageCompilerException( 'Source not found: ' + resolved );
         }
@@ -185,8 +177,8 @@ class ImageCompiler {
         let files = [ resolved ], root = resolved;
 
         // Fetch files if source is a directory
-        if ( this.fs.isDir( resolved ) ) {
-            files = this.fs.fileList( resolved, { extensions : /\.(gif|jpg|jpeg|png|svg|webp)/ } );
+        if ( FsInterface.isDir( resolved ) ) {
+            files = FsInterface.fileList( resolved, { extensions : /\.(gif|jpg|jpeg|png|svg|webp)/ } );
 
             // Require file results
             if ( !files.length ) {
@@ -211,14 +203,14 @@ class ImageCompiler {
         const resolved = path.resolve( target );
 
         // Attempt create
-        let created = null, exists = await this.fs.exists( resolved );
+        let created = null, exists = await FsInterface.exists( resolved );
         if ( !exists ) {
-            created = await this.fs.dir( resolved );
+            created = await FsInterface.dir( resolved );
             exists = true;
         }
 
         // Check for directory if not created
-        if ( !created && !this.fs.isDir( resolved ) ) {
+        if ( !created && !FsInterface.isDir( resolved ) ) {
             throw new ImageCompilerException( 'Target must be a directory: ' + resolved );
         }
         return { target, resolved, exists, created };
@@ -229,15 +221,18 @@ class ImageCompiler {
      * @protected
      * @param {string} file - File path
      * @param {null|string} ext - File extension change
+     * @param {null|string} rel - Relative path
      * @return {{ext: string, name: string, dir: string}} - Path data
      */
-    _getPathData( file, ext = null ) {
+    _getPathData( file, ext = null, rel = null ) {
         const data = {
             dir : path.dirname( file ),
             name : path.basename( file, path.extname( file ) ),
             ext : ext || path.extname( file ),
         };
         data.path = ext ? path.join( data.dir, data.name + data.ext ) : file;
+        data.rel = '.' + path.sep + ( rel && rel !== '.' ? rel + path.sep : '' )
+            + data.name + data.ext;
         return data;
     }
 
@@ -251,13 +246,14 @@ class ImageCompiler {
      * @return {Object} - File data
      */
     _getFileData( file, source, target, ext = null ) {
-        const target_path = path.join( target.resolved, this.fs.relative2root( file, source.root ) );
+        const target_path = path.join( target.resolved, FsInterface.relative2root( file, source.root ) );
+        const rel_path = path.dirname( FsInterface.relative2root( target_path, target.resolved ) );
         return {
             source_root : source.root,
             target_root : target.resolved,
-            rel : path.dirname( this.fs.relative2root( target_path, target.resolved ) ),
-            source : this._getPathData( file ),
-            target : this._getPathData( target_path, ext ),
+            rel : rel_path,
+            source : this._getPathData( file, null, rel_path ),
+            target : this._getPathData( target_path, ext, rel_path ),
             hash : null,
             buffer : null,
             source_type : null,
@@ -267,7 +263,8 @@ class ImageCompiler {
                 read : null,
                 process : null,
                 write : null,
-            }
+            },
+            errors : [],
         };
     }
 
@@ -370,7 +367,7 @@ class ImageCompiler {
 
         // Read file
         this.timer.start( 'read-' + data.source.path );
-        const buf = await this.fs.read( data.source.path, null );
+        const buf = await FsInterface.read( data.source.path, null );
         if ( buf instanceof Error ) {
             throw buf;
         }
@@ -379,7 +376,7 @@ class ImageCompiler {
         if ( this.options.map ) {
             data.hash = crypto.createHash( 'sha256' ).update( buf ).digest( 'hex' );
         }
-        data.time.read = this.timer.end( 'read-' + data.source.path );
+        data.time.read = this.timer.measure( 'read-' + data.source.path );
 
         // After read and optimize decision callback
         const optimize = this._shouldOptimize( data );
@@ -402,10 +399,9 @@ class ImageCompiler {
         const percent = 100 - data.target_size / data.source_size * 100;
         const decimals = Math.pow( 10, 2 );
         data.percent = Math.round( percent * decimals ) / decimals;
-        data.time.process = this.timer.end( 'process-' + data.source.path );
-
         stats.size.source += data.source_size;
         stats.size.target += data.target_size;
+        data.time.process = this.timer.measure( 'process-' + data.source.path );
     }
 
     /**
@@ -418,13 +414,13 @@ class ImageCompiler {
     async _requireDirectory( require_dir, stats ) {
 
         // Check if the dir was recently created and only process if not
-        const exists = await this.fs.exists( require_dir );
-        if ( !stats.dirs.created.includes( require_dir ) && ( !exists || !this.fs.isDir( require_dir ) ) ) {
+        const exists = await FsInterface.exists( require_dir );
+        if ( !stats.dirs.created.includes( require_dir ) && ( !exists || !FsInterface.isDir( require_dir ) ) ) {
             let created = null, error;
             try {
 
                 // Attempt to create
-                created = await this.fs.dir( require_dir );
+                created = await FsInterface.dir( require_dir );
             } catch ( e ) {
                 error = e;
             }
@@ -434,12 +430,16 @@ class ImageCompiler {
                 this.error( new ImageCompilerException( 'Failed to create directory: ' + require_dir, error || created ) );
 
                 // Remember the fail, all images in this dir will be skipped
-                stats.dirs.failed.push( require_dir );
+                if ( !stats.dirs.failed.includes( require_dir ) ) {
+                    stats.dirs.failed.push( require_dir );
+                }
                 return false;
             }
 
             // Remember we created it
-            stats.dirs.created.push( require_dir );
+            if ( !stats.dirs.created.includes( require_dir ) ) {
+                stats.dirs.created.push( require_dir );
+            }
         }
         return true;
     }
@@ -454,11 +454,11 @@ class ImageCompiler {
         if ( this.options.map ) {
             const map_path = path.join( source.root, this.options.mapName );
             if ( !this.options.squash ) {
-                const exists = await this.fs.exists( map_path );
+                const exists = await FsInterface.exists( map_path );
                 if ( exists ) {
                     let map = null;
                     try {
-                        map = await this.fs.readJSON( map_path );
+                        map = await FsInterface.readJSON( map_path );
                     } catch ( e ) {
                         this.error( new ImageCompilerException( 'Failed to read hashmap at: ' + map_path, e ) );
                         return map_path;
@@ -485,9 +485,9 @@ class ImageCompiler {
         // Prioritize from options if available
         if ( this.options.optionsPath && this.options.optionsPath.length ) {
             const from_options = path.join( this.options.optionsPath, this.options.optionsName );
-            const options_exists = await this.fs.exists( from_options );
+            const options_exists = await FsInterface.exists( from_options );
             if ( options_exists ) {
-                data = await this.fs.readJSON( from_options );
+                data = await FsInterface.readJSON( from_options );
                 from = from_options;
             }
         }
@@ -497,21 +497,21 @@ class ImageCompiler {
 
             // Check current working directory
             const from_cwd = path.join( process.cwd(), this.options.optionsName );
-            const cwd_exists = await this.fs.exists( from_cwd );
+            const cwd_exists = await FsInterface.exists( from_cwd );
             if ( cwd_exists ) {
 
                 // Config loaded from cwd
-                data = await this.fs.readJSON( from_cwd );
+                data = await FsInterface.readJSON( from_cwd );
                 from = from_cwd;
             } else {
 
                 // Check source root directory
                 const from_source = path.join( source.root, this.options.optionsName );
-                const source_exists = await this.fs.exists( from_source );
+                const source_exists = await FsInterface.exists( from_source );
                 if ( source_exists ) {
 
                     // Config loaded form source root
-                    data = await this.fs.readJSON( from_source );
+                    data = await FsInterface.readJSON( from_source );
                     from = from_source;
                 }
             }
@@ -533,12 +533,14 @@ class ImageCompiler {
      * @param {Object} source - Source object
      * @param {Object} target - Target object
      * @param {Object} stats - Stats object
-     * @param {null|Function} callback - Before write callback
+     * @param {null|Function} allowrite - Before write callback
+     * @param {null|Function} complete - Complete callback
      * @return {Promise<void>} - May throw errors
      */
-    async _processFile( file_path, source, target, stats, callback = null ) {
+    async _processFile( file_path, source, target, stats, allowrite = null, complete = null ) {
         this.timer.start( 'total-' + file_path );
         const file = this._getFileData( file_path, source, target );
+        stats.files.push( file );
 
         // Attempt to optimize
         try {
@@ -547,13 +549,15 @@ class ImageCompiler {
                 stats.processed++;
             }
         } catch ( e ) {
-            this.error( new ImageCompilerException( 'Optimize failed for: ' + file_path, e ) );
+            const error = new ImageCompilerException( 'Optimize failed for: ' + file_path, e );
+            file.errors.push( error );
+            this.error( error );
         }
 
         // Stats and write decision callback
         let write = true;
-        if ( file && typeof callback === 'function' ) {
-            write = await callback( file, stats, this );
+        if ( file && typeof allowrite === 'function' ) {
+            write = await allowrite( file, stats, this );
         }
 
         // Skip along if no write or file available
@@ -563,8 +567,8 @@ class ImageCompiler {
         this.timer.start( 'write-' + file.source.path );
 
         // Make sure the target directory exists
-        const require_dir = path.join( file.target_root, file.rel );
         if ( file.rel !== '.' ) {
+            const require_dir = path.join( file.target_root, file.rel );
             const available_or_created = await this._requireDirectory( require_dir, stats );
             if ( !available_or_created ) {
 
@@ -575,14 +579,22 @@ class ImageCompiler {
         }
 
         // Write the compressed image file
-        const wrote = await this.fs.write( file.target.path, file.buffer );
-        file.time.write = this.timer.end( 'write-' + file.source.path );
+        const wrote = await FsInterface.write( file.target.path, file.buffer );
+        file.time.write = this.timer.measure( 'write-' + file.source.path );
         if ( !wrote ) {
-            this.error( new ImageCompilerException( 'Failed to write: ' + file.target.path ) );
+            const error = new ImageCompilerException( 'Failed to write: ' + file.target.path );
+            file.errors.push( error );
+            this.error( error );
         } else {
             stats.written++;
         }
-        file.time.total = this.timer.end( 'total-' + file_path );
+        delete file.buffer;
+        file.time.total = this.timer.measure( 'total-' + file_path );
+
+        // Complete callback
+        if ( file && typeof complete === 'function' ) {
+            await complete( file, stats, this );
+        }
     }
 
     /**
@@ -591,13 +603,14 @@ class ImageCompiler {
      * @param {Object} source - Source object
      * @param {Object} target - Target object
      * @param {Object} stats - Stats object
-     * @param {null|Function} callback - Before write callback
+     * @param {null|Function} allowrite - Before write callback
+     * @param {null|Function} complete - Complete callback
      * @return {Promise<void[]>} - May throw errors
      */
-    _processParallel( source, target, stats, callback = null ) {
+    _processParallel( source, target, stats, allowrite = null, complete = null ) {
         const parallel = [];
         for ( let i = 0; i < source.files.length; i++ ) {
-            parallel.push( this._processFile( source.files[ i ], source, target, stats, callback ) );
+            parallel.push( this._processFile( source.files[ i ], source, target, stats, allowrite, complete ) );
         }
         return Promise.all( parallel );
     }
@@ -609,17 +622,18 @@ class ImageCompiler {
      * @param {Object} target - Target object
      * @param {Object} stats - Stats object
      * @param {boolean} parallel - Run optimize for all files in parallel
-     * @param {null|Function} callback - Before write callback
+     * @param {null|Function} allowrite - Before write callback
+     * @param {null|Function} complete - Complete callback
      * @return {Promise<void>} - May throw errors
      */
-    async _processSource( source, target, stats, parallel = false, callback = null ) {
+    async _processSource( source, target, stats, parallel = false, allowrite = null, complete = null ) {
         if ( parallel ) {
-            await this._processParallel( source, target, stats, callback );
+            await this._processParallel( source, target, stats, allowrite, complete );
         } else {
 
             // Process each file in order, one at a time, takes longer but does not stress your machine
             for ( let i = 0; i < source.files.length; i++ ) {
-                await this._processFile( source.files[ i ], source, target, stats, callback );
+                await this._processFile( source.files[ i ], source, target, stats, allowrite, complete );
             }
         }
     }
@@ -629,10 +643,11 @@ class ImageCompiler {
      * @param {string} source - Source path
      * @param {string} target - Target path
      * @param {boolean} parallel - Run optimize for all files in parallel
-     * @param {null|Function} callback - Before write callback
+     * @param {null|Function} allowrite - Before write callback
+     * @param {null|Function} complete - Complete callback
      * @return {Promise<Object>} - Stats
      */
-    async run( source, target, parallel = false, callback = null ) {
+    async run( source, target, parallel = false, allowrite = null, complete = null ) {
         this.timer.start( 'total-run' );
 
         // Get source and target definitions
@@ -645,6 +660,7 @@ class ImageCompiler {
             processed : 0,
             written : 0,
             skipped : 0,
+            files : [],
             time : null,
             size : {
                 source : 0,
@@ -667,18 +683,18 @@ class ImageCompiler {
         this.loadPlugins();
 
         // Run file list and optimize
-        await this._processSource( source, target, stats, parallel, callback );
+        await this._processSource( source, target, stats, parallel, allowrite, complete );
 
         // Update hashmap if option is on and path is available
         if ( this.options.map && stats.hashmap ) {
-            await this.fs.write( stats.hashmap, JSON.stringify( this._map ) );
+            await FsInterface.write( stats.hashmap, JSON.stringify( this._map ) );
         }
 
         // Calculate overall percent reduction
         if ( stats.size.source && stats.size.target ) {
             stats.size.percent = round( 100 - stats.size.target / stats.size.source * 100 );
         }
-        stats.time = this.timer.end( 'total-run' );
+        stats.time = this.timer.measure( 'total-run' );
 
         // End and return stats
         return stats;

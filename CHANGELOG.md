@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+ - Added better stats display.
+ - Added dimension values to file stats.
+ - Migrate to node-util@1.0.0 package.
+ - Fixed some text and small internal issues.
+
 ## 0.5.3
  - Added parallel option, might speed up processing when running many files.
  - Fixed config loading.

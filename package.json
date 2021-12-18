@@ -1,6 +1,6 @@
 {
   "name": "@squirrel-forge/minify-images",
-  "version": "0.5.3",
+  "version": "0.6.1",
   "description": "Simple image compiler including some useful configuration options.",
   "main": "src/classes/ImageCompiler.js",
   "scripts": {
@@ -34,8 +34,9 @@
   },
   "dependencies": {
     "@squirrel-forge/node-cfx": "^1.0.2",
-    "@squirrel-forge/node-util": "^0.6.0",
+    "@squirrel-forge/node-util": "^1.0.0",
     "file-type": "^16.5.3",
+    "image-size": "^1.0.0",
     "imagemin": "^7.0.1"
   },
   "optionalDependencies": {
