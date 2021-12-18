@@ -1,6 +1,6 @@
 # @squirrel-forge/minify-images
 Simple image compiler including some useful configuration options.
-Made to be compatible with node ^10.0.0, might work on higher versions, but current not supported or tested.
+Made to be compatible with node ^10.0.0, might work on higher versions, but currently not supported or tested.
 
 ## imagemin
 
