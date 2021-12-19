@@ -1,5 +1,5 @@
 # @squirrel-forge/minify-images
-Simple image compiler including some useful configuration options.
+Simple imagemin compiler including some useful configuration options.
 Made to be compatible with node ^10.0.0, might work on higher versions, but currently not supported or tested.
 
 ## imagemin
@@ -55,7 +55,7 @@ A long option always override the value of a short option if both are used.
 ------ | ------------ | -------- | ---
   -x   | --use-webp   |   bool   | Convert to webp format, only jpeg/png
   -p   | --plugins    | str, ... | Define which plugins to use
-  -c   | --colors     | str, ... | Define verbose listing color byte limits, must be 3 integers > 0
+  -c   | --colors     | str, ... | Define verbose listing color kib limits, must be 3 integers > 0
   -n   | --no-map     |   bool   | Do not use a hashmap, should use this option for single file argument
   -f   | --squash-map |   bool   | Ignore existing map, no map will be loaded and any existing map is replaced
   -o   | --options    | 'no',str | Load options from this path, unless set to 'no', if not set regular checks apply
