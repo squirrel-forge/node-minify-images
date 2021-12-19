@@ -670,7 +670,7 @@ class ImageCompiler {
             dirs : {
                 created : [],
                 failed : [],
-            }
+            },
         };
 
         // Load plugin options file
