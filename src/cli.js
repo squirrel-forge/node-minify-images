@@ -224,7 +224,7 @@ module.exports = async function cli() {
      * @param {Object} file - File object
      * @param {Object} stats - Stats object
      * @param {ImageCompiler} compiler - Builder instance
-     * @return {boolean} - Write file, always true
+     * @return {void}
      */
     const statsFetcher = ( file, stats, compiler ) => {
 
@@ -246,9 +246,6 @@ module.exports = async function cli() {
             + ')... ';
         compiler.strict && spinner.start( new_spinner );
         file_count++;
-
-        // Always write, we are just collecting stats
-        return true;
     };
 
     // Begin processing
