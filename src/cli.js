@@ -292,6 +292,9 @@ module.exports = async function cli() {
             cfx.info( 'Completed after [fwhite]' + timer.end( 'construct' ) );
         }
     } else {
+        if ( imgC.verbose ) {
+            cfx.info( 'Wrote to: ' + stDi.show( [ path.resolve( target ), 'path' ], true ) );
+        }
 
         // Show a few details at least when something was written
         cfx.success( 'minify-images wrote [ ' + stats.written + ' ] file' + ( stats.written === 1 ? '' : 's' )
