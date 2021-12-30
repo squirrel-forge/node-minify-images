@@ -4,7 +4,7 @@
 const path = require( 'path' );
 const sizeOf = require( 'image-size' );
 const { cfx } = require( '@squirrel-forge/node-cfx' );
-const { CliInput, Progress, Timer, leadingZeros, convertBytes, StatsDisplay } = require( '@squirrel-forge/node-util' );
+const { CliInput, Progress, Timer, leadingZeros, convertBytes, StatsDisplay, FsInterface } = require( '@squirrel-forge/node-util' );
 const ImageCompiler = require( './classes/ImageCompiler' );
 
 /**
@@ -60,6 +60,9 @@ module.exports = async function cli() {
         // Run in parallel mode
         parallel : [ '-l', '--parallel', false, true ],
 
+        // Deploy biased default config to target
+        config : [ ' ', '--defaults', false, true ],
+
         // Do not break on any error, disables the default strict if set
         loose : [ '-u', '--loose', null, true ],
 
@@ -77,6 +80,25 @@ module.exports = async function cli() {
         }
         cfx.log( pkg.name + '@' + pkg.version );
         cfx.info( '- Installed at: ' + install_dir );
+        process.exit( 0 );
+    }
+
+    // Deploy default config
+    if ( options.config ) {
+        const config_name = '.minify-images';
+        const config_data = require( './defaults.json' );
+        const resolved = path.resolve( target, config_name );
+        const config_exists = await FsInterface.exists( resolved );
+        if ( config_exists ) {
+            cfx.error( 'Config file already exists: ' + resolved );
+        } else {
+            const wrote = await FsInterface.write( resolved, JSON.stringify( config_data, null, 2 ) );
+            if ( wrote ) {
+                cfx.success( 'Created defaults config: ' + resolved );
+            } else {
+                cfx.error( 'Failed to write config: ' + resolved );
+            }
+        }
         process.exit( 0 );
     }
 
