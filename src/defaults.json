@@ -1,0 +1,30 @@
+{
+  "imagemin-mozjpeg": {
+    "quality": 90,
+    "progressive": false,
+    "smooth": 1
+  },
+  "imagemin-pngquant": {
+    "quality": [0.5, 0.8],
+    "dithering": 1
+  },
+  "imagemin-gifsicle": {
+    "interlaced": false,
+    "optimizationLevel": 3
+  },
+  "imagemin-svgo": {
+    "plugins": [
+      { "removeViewBox": false },
+      { "cleanupIDs": false },
+      { "removeUnknownsAndDefaults": false }
+    ]
+  },
+  "imagemin-webp": {
+    "preset": "default",
+    "quality": 90,
+    "alphaQuality": 100,
+    "method": 6,
+    "lossless": false,
+    "nearLossless": 90
+  }
+}
