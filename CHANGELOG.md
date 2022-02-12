@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.1
+ - Fixed changelog.
+ - Update dependencies.
+
+## 0.7.0
+ - Improved docs.
+ - Updated node-util package.
+ - Adedd some small verbose niceties.
+ - Added biased default config.
+ - Added *--defaults* option to deploy biased default config to cwd or target path.
+
 ## 0.6.1
  - Added better stats display.
  - Added dimension values to file stats.
