@@ -389,6 +389,7 @@ class ImageCompiler {
 
         // Optimize
         this.timer.start( 'process-' + data.source.path );
+        data.source_buffer = buf;
         data.buffer = await imagemin.buffer( buf, { plugins : this._plugins } );
         data.target_size = Buffer.byteLength( data.buffer );
         data.target_type = await this.typeOfBuffer( data.buffer, data );

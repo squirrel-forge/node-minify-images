@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.2
+ - Use source file for target files larger than the source.
+
 ## 0.7.1
  - Fixed changelog.
  - Update dependencies.

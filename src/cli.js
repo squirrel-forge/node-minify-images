@@ -279,7 +279,23 @@ module.exports = async function cli() {
     try {
 
         // Run render, process and write
-        stats = await imgC.run( source, target, options.parallel, null, statsFetcher );
+        stats = await imgC.run( source, target, options.parallel, ( file, stats, compiler ) => {
+            if ( file.target_size > file.source_size ) {
+                file.buffer = file.source_buffer;
+
+                // Stop the spinner, is restarted after output
+                compiler.strict && spinner.stop();
+
+                if ( imgC.verbose ) cfx.info( 'Using source for: ' + stDi.show( [ path.resolve( file.source.path ), 'path' ], true ) );
+
+                // Start the spinner with the current count of the files processed
+                const new_spinner = 'Optimized ('
+                    + ( leadingZeros( file_count, ( stats.sources + '' ).length, ' ' ) + '/' + stats.sources )
+                    + ')... ';
+                compiler.strict && spinner.start( new_spinner );
+            }
+            return true;
+        }, statsFetcher );
     } catch ( e ) {
         imgC.strict && spinner.stop();
 
